@@ -5,7 +5,6 @@ module Symbol = struct
   type t = symbol
   let compare = Pervasives.compare
 end
-
 module SymbolMap = Map.Make(Symbol)
 module SymbolSet = Set.Make(Symbol)
 
@@ -25,6 +24,8 @@ let evaluate_symbol (sign : sign) (value : bool) =
 
 let symbol_to_string (sym : symbol) : string = sym
 
+let symbol_from_string (sym : string) : symbol = sym
+
 let make_cnf (conj : (string * sign) list list) : cnf =
   let sym_strings =
     List.map (fun literal -> fst literal) (List.concat conj) in
@@ -35,6 +36,9 @@ let make_cnf (conj : (string * sign) list list) : cnf =
       disj in
   { symbols = SymbolSet.of_list sym_strings;
     clauses = List.map build_clause conj }
+
+let unpack_cnf (cnf : cnf) : (string * sign) list list =
+  List.map SymbolMap.bindings cnf.clauses
 
 let assign_and_simplify (sym : symbol) (value : bool) (cnf : cnf) : cnf =
   if not (SymbolSet.mem sym cnf.symbols) then
@@ -48,13 +52,13 @@ let assign_and_simplify (sym : symbol) (value : bool) (cnf : cnf) : cnf =
           else Some (SymbolMap.remove sym clause)
       with Not_found -> Some clause in
     { symbols = SymbolSet.remove sym cnf.symbols;
-      clauses = List.fold_left
-                  ( fun new_clauses clause ->
+      clauses = List.fold_right
+                  ( fun clause new_clauses ->
                       match simplify_clause clause with
                       | None -> new_clauses
                       | Some clause -> clause :: new_clauses )
-                  []
-                  cnf.clauses }
+                  cnf.clauses
+                  [] }
 
 let choose_symbol (cnf : cnf) : symbol = SymbolSet.choose cnf.symbols
 

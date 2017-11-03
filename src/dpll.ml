@@ -1,36 +1,44 @@
-include Cnf
+open Cnf
 
-type model = (string * bool) list
+type model =
+  | Solution of (string * bool) list
+  | Unsat
 
-let rec dpll_rec (cnf : Cnf.cnf) (model : model) : model option =
-  if Cnf.solved cnf then
+type disjunction = (string * sign) list
+type conjuction = disjunction list
+
+type assignment = (string * bool) list
+
+let rec dpll_rec (cnf : cnf) (model : assignment) : assignment option =
+  if solved cnf then
     Some model
-  else if Cnf.unsat cnf then
+  else if unsat cnf then
     None
   else
-    match Cnf.unit_clause_propagate cnf with
+    match unit_clause_propagate cnf with
     | Some (sym, value, new_cnf) ->
-        dpll_rec new_cnf ((Cnf.symbol_to_string sym, value) :: model)
+        dpll_rec new_cnf ((symbol_to_string sym, value) :: model)
     | None ->
-        match Cnf.pure_literal_assign cnf with
+        match pure_literal_assign cnf with
         | Some (sym, value, new_cnf) ->
-            dpll_rec new_cnf ((Cnf.symbol_to_string sym, value) :: model)
+            dpll_rec new_cnf ((symbol_to_string sym, value) :: model)
         | None ->
-            let sym = Cnf.choose_symbol cnf in
-            match dpll_rec (Cnf.assign_and_simplify sym true cnf)
-                           ((Cnf.symbol_to_string sym, true) :: model) with
+            let sym = choose_symbol cnf in
+            match dpll_rec (assign_and_simplify sym true cnf)
+                           ((symbol_to_string sym, true) :: model) with
             | Some result -> Some result
-            | None -> dpll_rec (Cnf.assign_and_simplify sym false cnf)
-                               ((Cnf.symbol_to_string sym, false) :: model)
+            | None -> dpll_rec (assign_and_simplify sym false cnf)
+                               ((symbol_to_string sym, false) :: model)
 
-let dpll (cnf : (string * Cnf.sign) list list) : model option =
-  dpll_rec (Cnf.make_cnf cnf) []
+let dpll (cnf : conjuction) : model =
+  match dpll_rec (make_cnf cnf) [] with
+  | Some sol -> Solution sol
+  | None -> Unsat
 
 let print_model (model : model) : unit =
-  List.iter
-    (fun (symbol, value) ->
-      Format.printf
-        "%s %s\n"
-        symbol
-        (if value then "true" else "false"))
-    model
+  match model with
+  | Unsat -> Format.printf "unsat\n"
+  | Solution model ->
+      List.iter (fun (symbol, value) ->
+        Format.printf "%s: %s\n" symbol (if value then "true" else "false"))
+        model
